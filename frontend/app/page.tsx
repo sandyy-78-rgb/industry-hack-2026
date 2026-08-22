@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import AnimatedBackground from "./AnimatedBackground";
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -62,6 +63,7 @@ export default function Home() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
+        <AnimatedBackground />
         
         {/* Background glow */}
         <div className="pointer-events-none absolute left-1/2 top-0 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[140px]" />
