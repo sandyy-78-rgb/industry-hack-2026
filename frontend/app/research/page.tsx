@@ -2,94 +2,109 @@
 
 import { useState } from "react";
 
+type Article = {
+  pmid: string;
+  title: string;
+  journal: string;
+  publicationDate: string;
+  authors: string[];
+  abstract?: string;
+  pubmedUrl: string;
+};
+
 export default function ResearchPage() {
   const [question, setQuestion] = useState("");
-  const [articles, setArticles] = useState<
-    {
-      pmid: string;
-      title: string;
-      journal: string;
-      publicationDate: string;
-      authors: string[];
-      pubmedUrl: string;
-    }[]
-  >([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [synthesis, setSynthesis] = useState("");
 
   const exampleQuestion =
-  "What compounds are being investigated for EGFR in lung cancer?";
-const searchPubMed = async () => {
-  if (!question.trim()) {
-    setQuestion(exampleQuestion);
-    return;
-  }
+    "What compounds are being investigated for EGFR in lung cancer?";
 
-  setLoading(true);
-  setSearched(true);
-  setSynthesis("");
-
-  try {
-    const response = await fetch(
-      `/api/pubmed?q=${encodeURIComponent(question)}`
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.error || "PubMed search failed.");
-    }
-
-    const retrievedArticles = data.articles || [];
-
-    setArticles(retrievedArticles);
-
-    if (retrievedArticles.length === 0) {
+  const searchPubMed = async () => {
+    if (!question.trim()) {
+      setQuestion(exampleQuestion);
       return;
     }
 
-    const synthesisResponse = await fetch("/api/synthesis", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question,
-        articles: retrievedArticles,
-      }),
-    });
+    setLoading(true);
+    setSearched(true);
+    setSynthesis("");
 
-    const synthesisData = await synthesisResponse.json();
+    try {
+      // =========================
+      // STEP 1: PUBMED
+      // =========================
 
-    if (!synthesisResponse.ok) {
-      throw new Error(
-        synthesisData?.error || "AI synthesis failed."
+      const response = await fetch(
+        `/api/pubmed?q=${encodeURIComponent(question)}`
       );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "PubMed search failed.");
+      }
+
+      const retrievedArticles: Article[] = data.articles || [];
+
+      setArticles(retrievedArticles);
+
+      if (retrievedArticles.length === 0) {
+        return;
+      }
+
+      // =========================
+      // STEP 2: AI SYNTHESIS
+      // =========================
+
+      const synthesisResponse = await fetch("/api/synthesis", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          articles: retrievedArticles,
+        }),
+      });
+
+      const synthesisData = await synthesisResponse.json();
+
+      if (!synthesisResponse.ok) {
+        throw new Error(
+          synthesisData?.error || "AI synthesis failed."
+        );
+      }
+
+      setSynthesis(
+        synthesisData.synthesis || "No AI synthesis was returned."
+      );
+    } catch (error) {
+      console.error("BIOSAGE research error:", error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unknown BIOSAGE research error.";
+
+      setSynthesis(`Unable to generate AI synthesis: ${message}`);
+    } finally {
+      setLoading(false);
     }
-
-    setSynthesis(synthesisData.synthesis || "");
- } catch (error) {
-  console.error("BIOSAGE research error:", error);
-
-  const message =
-    error instanceof Error
-      ? error.message
-      : "Unknown BIOSAGE research error.";
-
-  setSynthesis(`Unable to generate AI synthesis: ${message}`);
-} finally {
-  setLoading(false);
-}
-};
+  };
 
   return (
     <main className="min-h-screen bg-[#050816] text-white">
+
+      {/* ================= HEADER ================= */}
 
       <header className="border-b border-white/10 bg-[#050816]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
 
           <div className="flex items-center gap-3">
+
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400 text-lg font-black text-black shadow-lg shadow-cyan-400/20">
               B
             </div>
@@ -103,6 +118,7 @@ const searchPubMed = async () => {
                 Research Workspace
               </div>
             </div>
+
           </div>
 
           <div className="hidden items-center gap-3 text-xs text-gray-500 md:flex">
@@ -113,13 +129,19 @@ const searchPubMed = async () => {
         </div>
       </header>
 
+
       <div className="mx-auto max-w-7xl px-6 py-12">
+
+        {/* ================= INTRO ================= */}
 
         <div className="max-w-3xl">
 
           <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-cyan-300">
+
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+
             Biomedical Intelligence
+
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-5xl">
@@ -133,6 +155,9 @@ const searchPubMed = async () => {
           </p>
 
         </div>
+
+
+        {/* ================= SEARCH ================= */}
 
         <section className="mt-12">
 
@@ -154,6 +179,7 @@ const searchPubMed = async () => {
 
               </div>
 
+
               <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
@@ -161,112 +187,212 @@ const searchPubMed = async () => {
                 className="min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-[#050816] p-5 text-base leading-7 text-white outline-none placeholder:text-gray-600 transition focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20"
               />
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
-                <button
-                  onClick={() => setQuestion(exampleQuestion)}
-                  className="text-left text-xs text-gray-500 transition hover:text-cyan-300"
-                >
-                  Try an example →
-                </button>
+              <button
+                onClick={searchPubMed}
+                disabled={loading}
+                className="mt-4 w-full rounded-2xl bg-cyan-400 py-4 font-semibold text-black shadow-lg shadow-cyan-400/10 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading
+                  ? "Analyzing Biomedical Evidence..."
+                  : "Search Biomedical Evidence →"}
+              </button>
 
-                <button
-                  onClick={searchPubMed}
-                  className="mt-4 w-full rounded-2xl bg-cyan-400 py-4 font-semibold text-black shadow-lg shadow-cyan-400/10 transition hover:bg-cyan-300"
-                >
-                  Search Biomedical Evidence →
-                </button>
-                {loading && (
-  <div className="mt-8 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-6 text-center">
-    <div className="text-sm font-semibold text-cyan-300">
-      Searching PubMed...
-    </div>
 
-    <p className="mt-2 text-xs text-gray-500">
-      Retrieving real biomedical research from NCBI PubMed.
-    </p>
-  </div>
-)}
+              <button
+                onClick={() => setQuestion(exampleQuestion)}
+                className="mt-3 text-left text-xs text-gray-500 transition hover:text-cyan-300"
+              >
+                Try an example →
+              </button>
 
-{searched && !loading && (
-  <div className="mt-10">
-    <div className="mb-5 flex items-center justify-between">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
-          Retrieved Evidence
-        </p>
 
-        <h3 className="mt-2 text-2xl font-bold">
-          PubMed Research
-        </h3>
-      </div>
+              {/* ================= LOADING ================= */}
 
-      <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1 text-xs text-cyan-300">
-        {articles.length} sources
-      </div>
-    </div>
+              {loading && (
+                <div className="mt-8 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-6 text-center">
 
-    {articles.length === 0 ? (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
-        <p className="text-sm text-gray-400">
-          No PubMed results were found for this question.
-        </p>
+                  <div className="text-sm font-semibold text-cyan-300">
+                    BIOSAGE is researching...
+                  </div>
 
-        <p className="mt-2 text-xs text-gray-600">
-          Try using different biomedical keywords.
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-4">
-        {articles.map((article, index) => (
-          <div
-            key={article.pmid}
-            className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition duration-300 hover:border-cyan-400/30 hover:bg-cyan-400/[0.03]"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <span className="text-xs font-semibold text-cyan-400">
-                SOURCE [{index + 1}]
-              </span>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Retrieving PubMed evidence and generating an AI-assisted
+                    synthesis.
+                  </p>
 
-              <span className="text-xs text-gray-600">
-                PMID {article.pmid}
-              </span>
+                </div>
+              )}
+
+
+              {/* ================= SOURCES ================= */}
+
+              {searched && !loading && (
+                <div className="mt-10">
+
+                  <div className="mb-5 flex items-center justify-between">
+
+                    <div>
+
+                      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
+                        Retrieved Evidence
+                      </p>
+
+                      <h3 className="mt-2 text-2xl font-bold">
+                        PubMed Research
+                      </h3>
+
+                    </div>
+
+                    <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1 text-xs text-cyan-300">
+                      {articles.length} sources
+                    </div>
+
+                  </div>
+
+
+                  {articles.length === 0 ? (
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+
+                      <p className="text-sm text-gray-400">
+                        No PubMed results were found for this question.
+                      </p>
+
+                      <p className="mt-2 text-xs text-gray-600">
+                        Try using different biomedical keywords.
+                      </p>
+
+                    </div>
+
+                  ) : (
+
+                    <div className="space-y-4">
+
+                      {articles.map((article, index) => (
+
+                        <div
+                          key={article.pmid}
+                          className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition duration-300 hover:border-cyan-400/30 hover:bg-cyan-400/[0.03]"
+                        >
+
+                          <div className="flex items-start justify-between gap-4">
+
+                            <span className="text-xs font-semibold text-cyan-400">
+                              SOURCE [{index + 1}]
+                            </span>
+
+                            <span className="text-xs text-gray-600">
+                              PMID {article.pmid}
+                            </span>
+
+                          </div>
+
+
+                          <h4 className="mt-4 text-lg font-semibold leading-7 text-white">
+                            {article.title}
+                          </h4>
+
+
+                          <p className="mt-3 text-sm text-gray-500">
+                            {article.journal} · {article.publicationDate}
+                          </p>
+
+
+                          {article.authors.length > 0 && (
+                            <p className="mt-2 text-xs text-gray-600">
+                              {article.authors.join(", ")}
+                            </p>
+                          )}
+
+
+                          <a
+                            href={article.pubmedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-5 inline-flex text-sm font-semibold text-cyan-400 transition hover:text-cyan-300"
+                          >
+                            View PubMed source →
+                          </a>
+
+                        </div>
+
+                      ))}
+
+                    </div>
+
+                  )}
+
+
+                  {/* ================================================= */}
+                  {/* AI SUMMARY — AT THE END OF THE OUTPUT            */}
+                  {/* ================================================= */}
+
+                  {synthesis && (
+
+                    <div className="mt-8 rounded-3xl border border-cyan-400/30 bg-cyan-400/[0.04] p-7 shadow-xl shadow-cyan-950/20">
+
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+                        <div>
+
+                          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
+                            AI Research Summary
+                          </p>
+
+                          <h3 className="mt-2 text-2xl font-bold text-white">
+                            Evidence Synthesis
+                          </h3>
+
+                        </div>
+
+
+                        <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
+                          Groq AI · Evidence Grounded
+                        </div>
+
+                      </div>
+
+
+                      <div className="mt-6 rounded-2xl border border-white/10 bg-[#050816]/70 p-6">
+
+                        <div className="whitespace-pre-wrap text-sm leading-7 text-gray-300">
+                          {synthesis}
+                        </div>
+
+                      </div>
+
+
+                      <div className="mt-5 rounded-2xl border border-yellow-400/10 bg-yellow-400/[0.03] p-5">
+
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400/70">
+                          Research notice
+                        </div>
+
+                        <p className="mt-2 text-xs leading-6 text-gray-500">
+                          This synthesis was generated by AI using the retrieved
+                          PubMed evidence above. It is intended for research and
+                          informational purposes only. Review the original
+                          sources before relying on important findings.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  )}
+
+                </div>
+              )}
+
             </div>
 
-            <h4 className="mt-4 text-lg font-semibold leading-7 text-white">
-              {article.title}
-            </h4>
-
-            <p className="mt-3 text-sm text-gray-500">
-              {article.journal} · {article.publicationDate}
-            </p>
-
-            {article.authors.length > 0 && (
-              <p className="mt-2 text-xs text-gray-600">
-                {article.authors.join(", ")}
-              </p>
-            )}
-
-            <a
-              href={article.pubmedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex text-sm font-semibold text-cyan-400 transition hover:text-cyan-300"
-            >
-              View PubMed source →
-            </a>
           </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
 
-              </div>
-
-            </div>
-          </div>
         </section>
+
+
+        {/* ================= PIPELINE ================= */}
 
         <section className="mt-12">
 
@@ -308,90 +434,15 @@ const searchPubMed = async () => {
               </div>
 
             ))}
+
           </div>
+
         </section>
 
-        <section className="mt-12 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-7">
+        {/* ================= EVIDENCE SOURCES ================= */}
 
-            <div className="flex items-center justify-between">
-
-              <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
-                  AI synthesis
-                </div>
-
-                <h2 className="mt-3 text-2xl font-semibold">
-                  Research findings
-                </h2>
-              </div>
-
-              <div className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-wider text-gray-600">
-                {synthesis ? "Synthesis ready" : "Awaiting query"}
-              </div>
-
-            </div>
-            {!synthesis ? (
-  <div className="mt-8 rounded-2xl border border-dashed border-white/10 bg-black/10 p-8 text-center">
-
-    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/5 text-xl text-cyan-300">
-      ◈
-    </div>
-
-    <h3 className="mt-5 font-semibold text-gray-300">
-      Your research synthesis will appear here
-    </h3>
-
-    <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-600">
-      Enter a biomedical question above. Retrieved evidence and an
-      AI-assisted synthesis will be displayed in this area.
-    </p>
-
-  </div>
-) : (
-  <div className="mt-8 space-y-5">
-
-    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.03] p-6">
-
-      <div className="flex items-center justify-between gap-4">
-
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
-          AI-generated synthesis
-        </div>
-
-        <div className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1 text-[10px] uppercase tracking-wider text-cyan-300">
-          Evidence grounded
-        </div>
-
-      </div>
-
-      <div className="mt-6 whitespace-pre-wrap text-sm leading-7 text-gray-300">
-        {synthesis}
-      </div>
-
-    </div>
-
-    <div className="rounded-2xl border border-yellow-400/10 bg-yellow-400/[0.03] p-5">
-
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400/70">
-        AI synthesis notice
-      </div>
-
-      <p className="mt-2 text-xs leading-6 text-gray-500">
-        This summary was generated by AI using the retrieved biomedical
-        evidence shown below. It is not medical advice. Always review the
-        original sources and independently verify important findings.
-      </p>
-
-    </div>
-
-  </div>
-)}
-
-            
-
-          </div>
+        <section className="mt-12">
 
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-7">
 
@@ -400,10 +451,10 @@ const searchPubMed = async () => {
             </div>
 
             <h2 className="mt-3 text-2xl font-semibold">
-              Retrieved sources
+              Research sources
             </h2>
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-8 grid gap-3 md:grid-cols-2">
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
 
@@ -412,19 +463,21 @@ const searchPubMed = async () => {
                 </div>
 
                 <div className="mt-2 text-sm text-gray-600">
-                  Sources will appear here after retrieval.
+                  Real biomedical literature retrieved for each research
+                  question.
                 </div>
 
               </div>
 
+
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
 
                 <div className="text-xs font-semibold text-gray-400">
-                  ChEMBL
+                  AI Synthesis
                 </div>
 
                 <div className="mt-2 text-sm text-gray-600">
-                  Compound evidence will appear here.
+                  Groq-powered synthesis based on the retrieved evidence.
                 </div>
 
               </div>
@@ -434,6 +487,9 @@ const searchPubMed = async () => {
           </div>
 
         </section>
+
+
+        {/* ================= DISCLAIMER ================= */}
 
         <div className="mt-12 rounded-2xl border border-yellow-400/10 bg-yellow-400/[0.03] p-5">
 
@@ -452,6 +508,7 @@ const searchPubMed = async () => {
         </div>
 
       </div>
+
     </main>
   );
 }

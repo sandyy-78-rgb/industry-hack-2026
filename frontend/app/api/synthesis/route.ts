@@ -1,8 +1,8 @@
-import OpenAI from "openai";
+import Groq from "groq-sdk";
 import { NextResponse } from "next/server";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 export async function POST(request: Request) {
@@ -12,11 +12,9 @@ export async function POST(request: Request) {
     const question = body.question;
     const articles = body.articles;
 
-    if (!question || !articles || !Array.isArray(articles)) {
+    if (!question || !Array.isArray(articles)) {
       return NextResponse.json(
-        {
-          error: "Question and articles are required.",
-        },
+        { error: "Question and articles are required." },
         { status: 400 }
       );
     }
@@ -50,78 +48,72 @@ ${article.abstract || "Abstract unavailable."}
     const prompt = `
 You are BIOSAGE AI, a biomedical research assistant.
 
-The user asked:
+The researcher asked:
 
 "${question}"
 
-Below are real biomedical literature records retrieved directly from PubMed.
-Each source may contain an abstract.
+Below are biomedical literature records retrieved directly from PubMed.
 
 ${evidence}
 
-Create a concise, evidence-grounded research synthesis based ONLY on
-the supplied PubMed information.
+Create a concise research synthesis based ONLY on the supplied evidence.
 
-IMPORTANT RULES:
+Rules:
+- Do not invent facts or studies.
+- Do not use outside knowledge to fill missing information.
+- Do not provide medical advice.
+- Clearly mention uncertainty.
+- Refer to sources using [1], [2], [3], etc.
+- If evidence is insufficient, say so.
+- Do not claim a study proves something unless the supplied evidence supports that wording.
 
-1. Base claims primarily on the supplied abstracts and article information.
-2. Do not invent facts, studies, compounds, results, statistics, or citations.
-3. Do not use outside knowledge to fill missing information.
-4. Clearly distinguish AI-generated synthesis from retrieved evidence.
-5. Do not provide medical advice, diagnosis, or treatment recommendations.
-6. Mention uncertainty or limitations when evidence is insufficient.
-7. Refer to supporting sources using [1], [2], [3], etc.
-8. Keep the answer suitable for biomedical researchers.
-9. Do not claim that a paper proves something if it only investigates,
-   reports, or suggests it.
-10. If the retrieved papers are not directly relevant to the question,
-    explicitly say so.
-11. If an abstract is unavailable, do not assume what the paper found.
-
-Return exactly these sections:
+Return exactly:
 
 SUMMARY
 
-A concise synthesis of the most relevant evidence.
-
 KEY FINDINGS
-
-3 to 5 important findings. Include source numbers such as [1] or [2].
 
 LIMITATIONS
 
-Important gaps, uncertainty, study limitations, or relevance issues.
-
 EVIDENCE STRENGTH
-
-Choose one:
-Low
-Moderate
-High
-
-Then briefly explain why.
+Choose Low, Moderate, or High and briefly explain why.
 `;
 
-    const response = await openai.responses.create({
-      model: "gpt-5-mini",
-      input: prompt,
+    const completion = await groq.chat.completions.create({
+      model: "openai/gpt-oss-120b",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are BIOSAGE AI, a careful biomedical research synthesis assistant.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
     });
 
+    const synthesis =
+      completion.choices[0]?.message?.content ||
+      "Unable to generate synthesis.";
+
     return NextResponse.json({
-      synthesis: response.output_text,
+      synthesis,
       sourceCount: articles.length,
     });
   } catch (error) {
-  console.error("AI synthesis error:", error);
+    console.error("Groq synthesis error:", error);
 
-  return NextResponse.json(
-    {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unknown AI synthesis error.",
-    },
-    { status: 500 }
-  );
-}
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown AI synthesis error.",
+      },
+      { status: 500 }
+    );
+  }
 }

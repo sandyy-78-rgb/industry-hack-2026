@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import AnimatedBackground from "./AnimatedBackground";
+import ReactMarkdown from "react-markdown";
 
 export default function Home() {
   const [question, setQuestion] = useState("");
@@ -514,10 +515,64 @@ export default function Home() {
             />
 
             <button
-              onClick={() => {
-                alert(
-                  "The BIOSAGE AI research engine will be connected here next."
-                );
+              onClick={async () => {
+                if (!question.trim()) {
+                  alert("Please enter a research question.");
+                  return;
+                }
+
+                try {
+                  const response = await fetch(
+                    "http://127.0.0.1:8000/api/pubmed/search",
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        query: question.trim(),
+                        limit: 5,
+                      }),
+                    }
+                  );
+
+                  const responseText = await response.text();
+
+                  if (!response.ok) {
+                    throw new Error(
+                      `Backend error (${response.status}): ${responseText || "No response"}`
+                    );
+                  }
+
+                  let data;
+
+                  try {
+                    data = JSON.parse(responseText);
+                  } catch {
+                    throw new Error(
+                      "The backend returned an invalid response."
+                    );
+                  }
+
+                  console.log("BIOSAGE PubMed results:", data);
+
+                  sessionStorage.setItem(
+                    "biosage-research-results",
+                    JSON.stringify(data)
+                  );
+
+                  window.location.href = `/research?q=${encodeURIComponent(
+                    question.trim()
+                  )}`;
+                } catch (error) {
+                  console.error("BIOSAGE research error:", error);
+
+                  alert(
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to connect to the BIOSAGE backend."
+                  );
+                }
               }}
               className="mt-4 w-full rounded-2xl bg-cyan-400 py-4 font-semibold text-black shadow-lg shadow-cyan-400/10 transition hover:bg-cyan-300"
             >
